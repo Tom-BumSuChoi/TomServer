@@ -1,0 +1,17 @@
+[versions]
+kotlin = "2.3.21"
+springBoot = "4.1.1"
+springDependencyManagement = "1.1.7"
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
+spring-boot = { id = "org.springframework.boot", version.ref = "springBoot" }
+spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "springDependencyManagement" }
+
+[libraries]
+spring-boot-starter = { module = "org.springframework.boot:spring-boot-starter" }
+kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
+spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
+kotlin-test-junit5 = { module = "org.jetbrains.kotlin:kotlin-test-junit5" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }

@@ -24,16 +24,7 @@
 - [x] ADR 0001~0010 작성 → `docs/adr/`
 - [x] 1단계 설계 스펙 작성 → `docs/phase1-design.md`
 - [ ] **설계 스펙 검토** — 구현자 확인 대기
-- [ ] 1단계 학습 과제 목록 작성 → `docs/phase1-tasks.md`
-
-## 커밋하지 않은 변경분
-
-- [ ] `build.gradle.kts` — Java toolchain 21 → 25, 버전 카탈로그 참조로 교체
-- [ ] `settings.gradle.kts` — foojay 툴체인 리졸버 추가
-- [ ] `gradle/libs.versions.toml` — 신규
-- [ ] `docs/` 전체 — README, roadmap 갱신
-- [ ] `docs/adr/` — 신규 11개
-- [ ] `TODO.md` — 신규
+- [x] 1단계 학습 과제 문서 작성 → `docs/phase1-tasks.md`
 
 ## 나중에
 

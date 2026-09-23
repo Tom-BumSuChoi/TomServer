@@ -23,7 +23,7 @@ dependencies {
     implementation(libs.spring.boot.starter)
     implementation(libs.spring.boot.starter.data.jpa)
     implementation(libs.kotlin.reflect)
-    implementation(libs.flyway.core)
+    implementation(libs.spring.boot.flyway)
 
     runtimeOnly(libs.mysql)
     runtimeOnly(libs.flyway.mysql)

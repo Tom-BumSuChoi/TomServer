@@ -2,12 +2,14 @@ package kr.kro.tomchi.tomserver.order
 
 import kr.kro.tomchi.tomserver.catalog.SkuRepository
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 @Service
 class OrderService(
     private val orderRepository: OrderRepository,
     private val skuRepository: SkuRepository
 ) {
+    @Transactional
     fun placeOrder(userId: Long, skuId: Long, quantity: Int): Order {
         // 조회
         val sku = skuRepository.findById(skuId)

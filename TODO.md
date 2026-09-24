@@ -40,5 +40,5 @@
 
 빈 디렉터리를 미리 만들지 않는다.
 
-- `docs/experiments/` — 첫 측정 기록을 쓸 때 (계단 0)
-- `src/gatling/kotlin/` — Gatling을 도입할 때 (계단 1)
+- [x] `docs/experiments/` — 계단 0 측정 기록을 쓰면서 생성
+- `src/gatling/kotlin/` — Gatling을 도입할 때

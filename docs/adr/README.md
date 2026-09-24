@@ -32,6 +32,6 @@
 | [0005](0005-mysql.md) | MySQL 채택 | 채택 |
 | [0006](0006-oauth-server-led.md) | OAuth 서버 주도 흐름과 자체 토큰 발급 | 채택 |
 | [0007](0007-fcm-push.md) | 푸시 채널로 FCM 채택 | 채택 |
-| [0008](0008-no-lock-abstraction.md) | 락 전략 비추상화와 계단식 교체 | 채택 |
+| [0008](0008-no-lock-abstraction.md) | 락 전략 비추상화와 STEP식 교체 | 채택 |
 | [0009](0009-testcontainers.md) | 실제 DB 기반 테스트 | 채택 |
 | [0010](0010-gatling.md) | 부하 도구로 Gatling 채택 | 채택 |

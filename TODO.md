@@ -6,7 +6,7 @@
 ## 확인 필요
 
 - [ ] **Gatling Gradle 플러그인의 Kotlin 소스셋 경로** — `src/gatling/kotlin`으로
-      예상하나 플러그인 문서로 확인 필요. 계단 1에서 도입할 때 확인한다.
+      예상하나 플러그인 문서로 확인 필요. STEP 1에서 도입할 때 확인한다.
 
 ## 결정 대기
 
@@ -40,5 +40,5 @@
 
 빈 디렉터리를 미리 만들지 않는다.
 
-- [x] `docs/experiments/` — 계단 0 측정 기록을 쓰면서 생성
+- [x] `docs/experiments/` — STEP 0 측정 기록을 쓰면서 생성
 - `src/gatling/kotlin/` — Gatling을 도입할 때

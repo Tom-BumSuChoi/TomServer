@@ -4,6 +4,7 @@ import kr.kro.tomchi.tomserver.catalog.Sku
 import kr.kro.tomchi.tomserver.catalog.SkuRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.data.repository.findByIdOrNull
@@ -96,11 +97,45 @@ class OrderServiceTest @Autowired constructor(
 
     @Test
     fun `취소된 주문은 결제 확정할 수 없다`() {
-        TODO()
+        // given
+        val sku = skuRepository.save(Sku(name = "testSKU", stock = 10))
+        val skuId = requireNotNull(sku.id)
+        val order = orderRepository.save(
+            Order(userId = 1, skuId = skuId, quantity = 4, status = OrderStatus.CANCELLED)
+        )
+        val orderId = requireNotNull(order.id)
+
+        // when
+        assertThrows<IllegalStateException> {
+            orderUseCase.confirmPayment(orderId)
+        }
+
+        // then
+        val actualOrder = orderRepository.findByIdOrNull(orderId) ?: error("주문을 찾을 수 없음")
+        val actualSku = skuRepository.findByIdOrNull(skuId) ?: error("SKU를 찾을 수 없음")
+        assertThat(actualOrder.status).isEqualTo(OrderStatus.CANCELLED)
+        assertThat(actualSku.stock).isEqualTo(10)
     }
 
     @Test
     fun `결제 완료된 주문은 취소할 수 없다`() {
-        TODO()
+        // given
+        val sku = skuRepository.save(Sku(name = "testSKU", stock = 10))
+        val skuId = requireNotNull(sku.id)
+        val order = orderRepository.save(
+            Order(userId = 1, skuId = skuId, quantity = 4, status = OrderStatus.PAYMENT_CONFIRMED)
+        )
+        val orderId = requireNotNull(order.id)
+
+        // when
+        assertThrows<IllegalStateException> {
+            orderUseCase.cancelOrder(orderId)
+        }
+
+        // then
+        val actualOrder = orderRepository.findByIdOrNull(orderId) ?: error("주문을 찾을 수 없음")
+        val actualSku = skuRepository.findByIdOrNull(skuId) ?: error("SKU를 찾을 수 없음")
+        assertThat(actualOrder.status).isEqualTo(OrderStatus.PAYMENT_CONFIRMED)
+        assertThat(actualSku.stock).isEqualTo(10)
     }
 }

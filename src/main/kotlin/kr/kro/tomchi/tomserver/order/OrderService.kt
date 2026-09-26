@@ -52,4 +52,19 @@ class OrderService(
         sku.stock += order.quantity
         order.status = OrderStatus.CANCELLED
     }
+
+    @Transactional
+    fun confirmPayment(orderId: Long) {
+        val order = orderRepository.findByIdOrNull(orderId)
+            ?: throw IllegalArgumentException("없는 주문: $orderId")
+
+        if (order.status == OrderStatus.PAYMENT_CONFIRMED) {
+            return
+        }
+        check(order.status == OrderStatus.PENDING_PAYMENT) {
+            "결제 확정할 수 없는 주문 상태: ${order.status}"
+        }
+
+        order.status = OrderStatus.PAYMENT_CONFIRMED
+    }
 }

@@ -4,7 +4,8 @@ import jakarta.persistence.*
 
 enum class OrderStatus {
     PENDING_PAYMENT,
-    CANCELLED
+    CANCELLED,
+    PAYMENT_CONFIRMED
 }
 
 @Entity

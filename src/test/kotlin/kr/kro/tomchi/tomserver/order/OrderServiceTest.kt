@@ -2,19 +2,27 @@ package kr.kro.tomchi.tomserver.order
 
 import kr.kro.tomchi.tomserver.catalog.Sku
 import kr.kro.tomchi.tomserver.catalog.SkuRepository
+import kr.kro.tomchi.tomserver.payment.PaymentAttemptResult
+import kr.kro.tomchi.tomserver.payment.PaymentGateway
+import kr.kro.tomchi.tomserver.payment.PaymentMethod
 import kr.kro.tomchi.tomserver.support.IntegrationTestBase
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.mockito.Mockito
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.data.repository.findByIdOrNull
+import org.springframework.test.context.bean.override.mockito.MockitoBean
+import java.util.*
 
+@MockitoBean(types = [PaymentGateway::class])
 @SpringBootTest
 class OrderServiceTest @Autowired constructor(
     private val orderUseCase: OrderUseCase,
     private val orderRepository: OrderRepository,
-    private val skuRepository: SkuRepository
+    private val skuRepository: SkuRepository,
+    private val paymentGateway: PaymentGateway
 ) : IntegrationTestBase() {
 
     @Test
@@ -118,5 +126,47 @@ class OrderServiceTest @Autowired constructor(
         val actualSku = skuRepository.findByIdOrNull(skuId) ?: error("SKU를 찾을 수 없음")
         assertThat(actualOrder.status).isEqualTo(OrderStatus.PAYMENT_CONFIRMED)
         assertThat(actualSku.stock).isEqualTo(10)
+    }
+
+    @Test
+    fun `결제 시도가 실패해도 선점 만료 전에는 주문과 재고를 유지한다`() {
+        // given
+        val sku = skuRepository.save(Sku(name = "testSKU", stock = 10))
+        val skuId = requireNotNull(sku.id)
+        val order = orderUseCase.placeOrder(userId = 1, skuId = skuId, quantity = 3)
+        val orderId = requireNotNull(order.id)
+        Mockito.doReturn(PaymentAttemptResult.DECLINED)
+            .`when`(paymentGateway)
+            .requestPayment(
+                Mockito.eq(orderId),
+                Mockito.eq(PaymentMethod.CREDIT_CARD) ?: PaymentMethod.CREDIT_CARD,
+                Mockito.any(UUID::class.java) ?: UUID.randomUUID()
+            )
+
+
+        // when
+        val result = orderUseCase.attemptPayment(orderId = orderId, paymentMethod = PaymentMethod.CREDIT_CARD)
+
+        // then
+        assertThat(result).isEqualTo(PaymentAttemptResult.DECLINED)
+        val actualSku = skuRepository.findByIdOrNull(skuId) ?: error("SKU를 찾을 수 없음 SKU ID: $skuId")
+        val actualOrder = orderRepository.findByIdOrNull(orderId) ?: error("Order를 찾을 수 없음: $orderId")
+        assertThat(actualOrder.status).isEqualTo(OrderStatus.PENDING_PAYMENT)
+        assertThat(actualSku.stock).isEqualTo(7)
+    }
+
+    @Test
+    fun `결제 실패 후 다른 수단으로 재시도하면 같은 주문을 확정하고 재고를 추가 차감하지 않는다`() {
+        TODO()
+    }
+
+    @Test
+    fun `결제 결과가 불확실하면 결과 확인 전까지 재고를 복구하지 않는다`() {
+        TODO()
+    }
+
+    @Test
+    fun `결제하지 않은 주문의 선점이 만료되면 주문을 취소하고 재고를 복구한다`() {
+        TODO()
     }
 }

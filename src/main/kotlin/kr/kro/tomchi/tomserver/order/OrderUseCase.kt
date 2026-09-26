@@ -24,11 +24,10 @@ class OrderUseCase(
     @Synchronized
     fun attemptPayment(orderId: Long, paymentMethod: PaymentMethod): PaymentAttemptResult {
         val attemptKey = UUID.randomUUID()
-        return paymentGateway.requestPayment(orderId = orderId, paymentMethod = paymentMethod, attemptKey = attemptKey)
-    }
-
-    @Synchronized
-    fun confirmPayment(orderId: Long) {
-        orderService.confirmPayment(orderId = orderId)
+        val result = paymentGateway.requestPayment(orderId = orderId, paymentMethod = paymentMethod, attemptKey = attemptKey)
+        if (result == PaymentAttemptResult.SUCCESS) {
+            orderService.confirmPayment(orderId)
+        }
+        return result
     }
 }

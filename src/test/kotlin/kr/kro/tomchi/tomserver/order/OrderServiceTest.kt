@@ -20,6 +20,7 @@ import java.util.*
 @SpringBootTest
 class OrderServiceTest @Autowired constructor(
     private val orderUseCase: OrderUseCase,
+    private val orderService: OrderService,
     private val orderRepository: OrderRepository,
     private val skuRepository: SkuRepository,
     private val paymentGateway: PaymentGateway
@@ -72,7 +73,7 @@ class OrderServiceTest @Autowired constructor(
         val orderId = requireNotNull(order.id)
 
         // when
-        orderUseCase.confirmPayment(orderId)
+        orderService.confirmPayment(orderId)
 
         // then
         val actualOrder = orderRepository.findByIdOrNull(orderId)
@@ -96,7 +97,7 @@ class OrderServiceTest @Autowired constructor(
 
         // when
         assertThrows<IllegalStateException> {
-            orderUseCase.confirmPayment(orderId)
+            orderService.confirmPayment(orderId)
         }
 
         // then
@@ -156,8 +157,38 @@ class OrderServiceTest @Autowired constructor(
     }
 
     @Test
-    fun `결제 실패 후 다른 수단으로 재시도하면 같은 주문을 확정하고 재고를 추가 차감하지 않는다`() {
-        TODO()
+    fun `결제 실패 후 다른 수단으로 재시도해 성공하면 기존 주문을 확정하고 재고를 중복 차감하지 않는다`() {
+        // given
+        val sku = skuRepository.save(Sku(name = "testSKU", stock = 10))
+        val skuId = requireNotNull(sku.id)
+        val order = orderUseCase.placeOrder(userId = 1, skuId = skuId, quantity = 4)
+        val orderId = requireNotNull(order.id)
+        Mockito.doReturn(PaymentAttemptResult.DECLINED)
+            .`when`(paymentGateway)
+            .requestPayment(
+                Mockito.eq(orderId),
+                Mockito.eq(PaymentMethod.CREDIT_CARD) ?: PaymentMethod.CREDIT_CARD,
+                Mockito.any(UUID::class.java) ?: UUID.randomUUID()
+            )
+        Mockito.doReturn(PaymentAttemptResult.SUCCESS)
+            .`when`(paymentGateway)
+            .requestPayment(
+                Mockito.eq(orderId),
+                Mockito.eq(PaymentMethod.DEBIT_CARD) ?: PaymentMethod.DEBIT_CARD,
+                Mockito.any(UUID::class.java) ?: UUID.randomUUID()
+            )
+
+        // when
+        val firstResult = orderUseCase.attemptPayment(orderId, PaymentMethod.CREDIT_CARD)
+        val retryResult = orderUseCase.attemptPayment(orderId, PaymentMethod.DEBIT_CARD)
+
+        // then
+        val actualOrder = orderRepository.findByIdOrNull(orderId) ?: error("주문을 찾을 수 없음")
+        val actualSku = skuRepository.findByIdOrNull(skuId) ?: error("SKU를 찾을 수 없음")
+        assertThat(firstResult).isEqualTo(PaymentAttemptResult.DECLINED)
+        assertThat(retryResult).isEqualTo(PaymentAttemptResult.SUCCESS)
+        assertThat(actualOrder.status).isEqualTo(OrderStatus.PAYMENT_CONFIRMED)
+        assertThat(actualSku.stock).isEqualTo(6)
     }
 
     @Test

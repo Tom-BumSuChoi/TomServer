@@ -16,7 +16,7 @@ import org.testcontainers.mysql.MySQLContainer
 @SpringBootTest
 @Testcontainers
 class OrderServiceTest @Autowired constructor(
-    private val placeOrderUseCase: PlaceOrderUseCase,
+    private val orderUseCase: OrderUseCase,
     private val orderRepository: OrderRepository,
     private val skuRepository: SkuRepository
 ) {
@@ -40,11 +40,11 @@ class OrderServiceTest @Autowired constructor(
         // given
         val sku = skuRepository.save(Sku(name = "testSKU", stock = 10))
         val skuId = requireNotNull(sku.id)
-        val order = placeOrderUseCase.execute(userId = 1, skuId = skuId, quantity = 3)
+        val order = orderUseCase.placeOrder(userId = 1, skuId = skuId, quantity = 3)
         val orderId = requireNotNull(order.id)
 
         // when
-        placeOrderUseCase.cancelOrder(orderId)
+        orderUseCase.cancelOrder(orderId)
 
         // then
         val actualSku = skuRepository.findByIdOrNull(skuId) ?: error("SKU를 찾을 수 없음")
@@ -59,15 +59,48 @@ class OrderServiceTest @Autowired constructor(
         // given
         val sku = skuRepository.save(Sku(name = "testSKU", stock = 10))
         val skuId = requireNotNull(sku.id)
-        val order = placeOrderUseCase.execute(userId = 1, skuId = skuId, quantity = 3)
+        val order = orderUseCase.placeOrder(userId = 1, skuId = skuId, quantity = 3)
         val orderId = requireNotNull(order.id)
 
         // when
-        placeOrderUseCase.cancelOrder(orderId)
-        placeOrderUseCase.cancelOrder(orderId)
+        orderUseCase.cancelOrder(orderId)
+        orderUseCase.cancelOrder(orderId)
 
         // then
         val actualSku = skuRepository.findByIdOrNull(skuId) ?: error("SKU를 찾을 수 없음")
         assertThat(actualSku.stock).isEqualTo(10)
+    }
+
+    @Test
+    fun `결제 대기 주문을 확정하면 결제 완료 상태가 되고 재고는 복구되지 않는다`() {
+        // given
+        val testSku = Sku(name = "testSKU", stock = 10)
+        val sku = skuRepository.save(testSku)
+        val skuId = requireNotNull(testSku.id)
+        val testOrder = Order(userId = 1, skuId = skuId, quantity = 4, status = OrderStatus.PENDING_PAYMENT)
+        val order = orderRepository.save(testOrder)
+        val orderId = requireNotNull(order.id)
+
+        // when
+        orderUseCase.confirmPayment(orderId)
+
+        // then
+        val actualOrder = orderRepository.findByIdOrNull(orderId)
+        val actualSku = skuRepository.findByIdOrNull(skuId)
+        requireNotNull(actualOrder)
+        requireNotNull(actualSku)
+
+        assertThat(actualSku.stock).isEqualTo(10)
+        assertThat(actualOrder.status).isEqualTo(OrderStatus.PAYMENT_CONFIRMED)
+    }
+
+    @Test
+    fun `취소된 주문은 결제 확정할 수 없다`() {
+        TODO()
+    }
+
+    @Test
+    fun `결제 완료된 주문은 취소할 수 없다`() {
+        TODO()
     }
 }

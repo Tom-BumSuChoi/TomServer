@@ -11,11 +11,9 @@ import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.mysql.MySQLContainer
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
-import kotlin.system.measureTimeMillis
 
 @SpringBootTest
 @Testcontainers
@@ -24,6 +22,12 @@ class OrderServiceTest @Autowired constructor(
     private val orderRepository: OrderRepository,
     private val skuRepository: SkuRepository
 ) {
+
+    private data class ScenarioResult(
+        val successCount: Int,
+        val finalStocks: List<Int>,
+        val orderCount: Long
+    )
 
     companion object {
         private const val INITIAL_STOCK = 100
@@ -44,55 +48,59 @@ class OrderServiceTest @Autowired constructor(
         }
     }
 
-    // STEP 0에서 초과 판매를 관찰하기 위한 테스트다. 락이 없는 지금은 반드시 실패하므로
-    // CI를 막지 않도록 주석으로 둔다. STEP 1에서 락을 걸면서 되살린다.
-    // 측정 결과는 docs/experiments/00-no-lock.md 에 있다.
+    @Test
+    fun `한 SKU에 1,000건을 동시에 주문해도 초과 판매하지 않는다`() {
+        val result = runScenario(skuCount = 1, requestsPerSku = CONCURRENT_REQUESTS)
+
+        assertThat(result.successCount).isEqualTo(INITIAL_STOCK)
+        assertThat(result.finalStocks).containsExactly(0)
+        assertThat(result.orderCount).isEqualTo(result.successCount.toLong())
+    }
 
     @Test
-    fun `재고 100에 1,000건을 동시에 주문하면 초과 판매가 난다`() {
-        // given
-        val skuId = skuRepository.save(Sku(name = "에티오피아 예가체프", stock = INITIAL_STOCK)).id!!
+    fun `열 SKU의 재고가 충분하면 모든 주문이 성공한다`() {
+        val result = runScenario(skuCount = 10, requestsPerSku = 100)
 
-        val executor = Executors.newFixedThreadPool(CONCURRENT_REQUESTS)
-        val startLatch = CountDownLatch(1)                    // 출발선
-        val doneLatch = CountDownLatch(CONCURRENT_REQUESTS)   // 결승선
+        assertThat(result.successCount).isEqualTo(1_000)
+        assertThat(result.finalStocks).containsExactlyElementsOf(List(10) { 0 })
+        assertThat(result.orderCount).isEqualTo(result.successCount.toLong())
+    }
+
+    private fun runScenario(skuCount: Int, requestsPerSku: Int): ScenarioResult {
+        orderRepository.deleteAll()
+        skuRepository.deleteAll()
+
+        val skuIds = (1..skuCount).map { index ->
+            skuRepository.save(Sku(name = "테스트 SKU $index", stock = INITIAL_STOCK)).id!!
+        }
+        val requestCount = skuCount * requestsPerSku
+        val executor = Executors.newFixedThreadPool(requestCount)
+        val startLatch = CountDownLatch(1)
+        val doneLatch = CountDownLatch(requestCount)
         val success = AtomicInteger()
-        val failures = ConcurrentHashMap<String, AtomicInteger>()
 
-        repeat(CONCURRENT_REQUESTS) { i ->
+        repeat(requestCount) { requestIndex ->
             executor.submit {
                 try {
                     startLatch.await()
-                    placeOrderUseCase.execute(userId = i.toLong(), skuId = skuId, quantity = 1)
+                    val skuId = skuIds[requestIndex / requestsPerSku]
+                    placeOrderUseCase.execute(userId = requestIndex.toLong(), skuId = skuId, quantity = 1)
                     success.incrementAndGet()
-                } catch (e: Exception) {
-                    val reason = e::class.simpleName ?: "Unknown"
-                    failures.computeIfAbsent(reason) { AtomicInteger() }.incrementAndGet()
+                } catch (_: Exception) {
                 } finally {
                     doneLatch.countDown()
                 }
             }
         }
 
-        // when — 묶어둔 스레드를 한 번에 푼다
-        val elapsed = measureTimeMillis {
-            startLatch.countDown()
-            doneLatch.await()
-        }
+        startLatch.countDown()
+        doneLatch.await()
         executor.shutdown()
 
-        // then
-        val finalStock = skuRepository.findById(skuId).orElseThrow().stock
-        val orderCount = orderRepository.count()
-
-        println("성공 건수: ${success.get()}")
-        println("최종 재고: $finalStock")
-        println("주문 행 수: $orderCount")
-        println("실패: ${failures.mapValues { it.value.get() }}")
-        println("소요 시간: ${elapsed}ms")
-
-        assertThat(success.get()).isLessThanOrEqualTo(INITIAL_STOCK)
-        assertThat(finalStock).isEqualTo(INITIAL_STOCK - success.get())
+        return ScenarioResult(
+            successCount = success.get(),
+            finalStocks = skuIds.map { skuId -> skuRepository.findById(skuId).orElseThrow().stock },
+            orderCount = orderRepository.count()
+        )
     }
-    
 }

@@ -10,4 +10,9 @@ class PlaceOrderUseCase(
     fun execute(userId: Long, skuId: Long, quantity: Int): Order {
         return orderService.placeOrder(userId, skuId, quantity)
     }
+
+    @Synchronized
+    fun cancelOrder(orderId: Long) {
+        orderService.cancelOrder(orderId)
+    }
 }

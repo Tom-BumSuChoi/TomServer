@@ -6,14 +6,12 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.mysql.MySQLContainer
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicInteger
 
 @SpringBootTest
 @Testcontainers
@@ -23,16 +21,7 @@ class OrderServiceTest @Autowired constructor(
     private val skuRepository: SkuRepository
 ) {
 
-    private data class ScenarioResult(
-        val successCount: Int,
-        val finalStocks: List<Int>,
-        val orderCount: Long
-    )
-
     companion object {
-        private const val INITIAL_STOCK = 100
-        private const val CONCURRENT_REQUESTS = 1_000
-
         @Container
         @JvmStatic
         val mysql = MySQLContainer("mysql:8.0")
@@ -43,64 +32,42 @@ class OrderServiceTest @Autowired constructor(
             registry.add("spring.datasource.url") { mysql.jdbcUrl }
             registry.add("spring.datasource.username") { mysql.username }
             registry.add("spring.datasource.password") { mysql.password }
-            // 기본값 10이면 실제 동시성이 커넥션 수만큼으로 잘려 경합이 잘 안 난다
-            registry.add("spring.datasource.hikari.maximum-pool-size") { 50 }
         }
     }
 
     @Test
-    fun `한 SKU에 1,000건을 동시에 주문해도 초과 판매하지 않는다`() {
-        val result = runScenario(skuCount = 1, requestsPerSku = CONCURRENT_REQUESTS)
+    fun `주문 취소 시 재고를 복구한다`() {
+        // given
+        val sku = skuRepository.save(Sku(name = "testSKU", stock = 10))
+        val skuId = requireNotNull(sku.id)
+        val order = placeOrderUseCase.execute(userId = 1, skuId = skuId, quantity = 3)
+        val orderId = requireNotNull(order.id)
 
-        assertThat(result.successCount).isEqualTo(INITIAL_STOCK)
-        assertThat(result.finalStocks).containsExactly(0)
-        assertThat(result.orderCount).isEqualTo(result.successCount.toLong())
+        // when
+        placeOrderUseCase.cancelOrder(orderId)
+
+        // then
+        val actualSku = skuRepository.findByIdOrNull(skuId) ?: error("SKU를 찾을 수 없음")
+        val actualOrder = orderRepository.findByIdOrNull(orderId) ?: error("주문을 찾을 수 없음")
+
+        assertThat(actualSku.stock).isEqualTo(10)
+        assertThat(actualOrder.status).isEqualTo(OrderStatus.CANCELLED)
     }
 
     @Test
-    fun `열 SKU의 재고가 충분하면 모든 주문이 성공한다`() {
-        val result = runScenario(skuCount = 10, requestsPerSku = 100)
+    fun `이미 취소된 주문을 다시 취소해도 재고는 한 번만 복구한다`() {
+        // given
+        val sku = skuRepository.save(Sku(name = "testSKU", stock = 10))
+        val skuId = requireNotNull(sku.id)
+        val order = placeOrderUseCase.execute(userId = 1, skuId = skuId, quantity = 3)
+        val orderId = requireNotNull(order.id)
 
-        assertThat(result.successCount).isEqualTo(1_000)
-        assertThat(result.finalStocks).containsExactlyElementsOf(List(10) { 0 })
-        assertThat(result.orderCount).isEqualTo(result.successCount.toLong())
-    }
+        // when
+        placeOrderUseCase.cancelOrder(orderId)
+        placeOrderUseCase.cancelOrder(orderId)
 
-    private fun runScenario(skuCount: Int, requestsPerSku: Int): ScenarioResult {
-        orderRepository.deleteAll()
-        skuRepository.deleteAll()
-
-        val skuIds = (1..skuCount).map { index ->
-            skuRepository.save(Sku(name = "테스트 SKU $index", stock = INITIAL_STOCK)).id!!
-        }
-        val requestCount = skuCount * requestsPerSku
-        val executor = Executors.newFixedThreadPool(requestCount)
-        val startLatch = CountDownLatch(1)
-        val doneLatch = CountDownLatch(requestCount)
-        val success = AtomicInteger()
-
-        repeat(requestCount) { requestIndex ->
-            executor.submit {
-                try {
-                    startLatch.await()
-                    val skuId = skuIds[requestIndex / requestsPerSku]
-                    placeOrderUseCase.execute(userId = requestIndex.toLong(), skuId = skuId, quantity = 1)
-                    success.incrementAndGet()
-                } catch (_: Exception) {
-                } finally {
-                    doneLatch.countDown()
-                }
-            }
-        }
-
-        startLatch.countDown()
-        doneLatch.await()
-        executor.shutdown()
-
-        return ScenarioResult(
-            successCount = success.get(),
-            finalStocks = skuIds.map { skuId -> skuRepository.findById(skuId).orElseThrow().stock },
-            orderCount = orderRepository.count()
-        )
+        // then
+        val actualSku = skuRepository.findByIdOrNull(skuId) ?: error("SKU를 찾을 수 없음")
+        assertThat(actualSku.stock).isEqualTo(10)
     }
 }

@@ -2,6 +2,11 @@ package kr.kro.tomchi.tomserver.order
 
 import jakarta.persistence.*
 
+enum class OrderStatus {
+    PENDING_PAYMENT,
+    CANCELLED
+}
+
 @Entity
 @Table(name = "orders")
 class Order(
@@ -10,5 +15,7 @@ class Order(
     var id: Long? = null,
     var userId: Long = 0,
     var skuId: Long = 0,
-    var quantity: Int = 0
+    var quantity: Int = 0,
+    @Enumerated(EnumType.STRING)
+    var status: OrderStatus = OrderStatus.PENDING_PAYMENT
 )

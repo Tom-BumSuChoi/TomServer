@@ -1,6 +1,7 @@
 package kr.kro.tomchi.tomserver.order
 
 import kr.kro.tomchi.tomserver.catalog.SkuRepository
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -12,8 +13,8 @@ class OrderService(
     @Transactional
     fun placeOrder(userId: Long, skuId: Long, quantity: Int): Order {
         // 조회
-        val sku = skuRepository.findById(skuId)
-            .orElseThrow { IllegalArgumentException("없는 SKU: $skuId") }
+        val sku = skuRepository.findByIdOrNull(skuId)
+            ?: throw IllegalArgumentException("없는 SKU: $skuId")
 
         // 조건
         if (sku.stock < quantity) {
@@ -31,5 +32,24 @@ class OrderService(
 
         // 주문 저장
         return orderRepository.save(order)
+    }
+
+    @Transactional
+    fun cancelOrder(orderId: Long) {
+        val order = orderRepository.findByIdOrNull(orderId)
+            ?: throw IllegalArgumentException("없는 주문: $orderId")
+
+        if (order.status == OrderStatus.CANCELLED) {
+            return
+        }
+        check(order.status == OrderStatus.PENDING_PAYMENT) {
+            "취소할 수 없는 주문 상태: ${order.status}"
+        }
+
+        val sku = skuRepository.findByIdOrNull(order.skuId)
+            ?: throw IllegalArgumentException("없는 SKU: ${order.skuId}")
+
+        sku.stock += order.quantity
+        order.status = OrderStatus.CANCELLED
     }
 }

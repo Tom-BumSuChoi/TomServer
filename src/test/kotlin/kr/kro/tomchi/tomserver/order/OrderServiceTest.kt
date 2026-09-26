@@ -2,39 +2,20 @@ package kr.kro.tomchi.tomserver.order
 
 import kr.kro.tomchi.tomserver.catalog.Sku
 import kr.kro.tomchi.tomserver.catalog.SkuRepository
+import kr.kro.tomchi.tomserver.support.IntegrationTestBase
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.data.repository.findByIdOrNull
-import org.springframework.test.context.DynamicPropertyRegistry
-import org.springframework.test.context.DynamicPropertySource
-import org.testcontainers.junit.jupiter.Container
-import org.testcontainers.junit.jupiter.Testcontainers
-import org.testcontainers.mysql.MySQLContainer
 
 @SpringBootTest
-@Testcontainers
 class OrderServiceTest @Autowired constructor(
     private val orderUseCase: OrderUseCase,
     private val orderRepository: OrderRepository,
     private val skuRepository: SkuRepository
-) {
-
-    companion object {
-        @Container
-        @JvmStatic
-        val mysql = MySQLContainer("mysql:8.0")
-
-        @DynamicPropertySource
-        @JvmStatic
-        fun datasourceProperties(registry: DynamicPropertyRegistry) {
-            registry.add("spring.datasource.url") { mysql.jdbcUrl }
-            registry.add("spring.datasource.username") { mysql.username }
-            registry.add("spring.datasource.password") { mysql.password }
-        }
-    }
+) : IntegrationTestBase() {
 
     @Test
     fun `주문 취소 시 재고를 복구한다`() {

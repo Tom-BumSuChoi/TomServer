@@ -192,8 +192,29 @@ class OrderServiceTest @Autowired constructor(
     }
 
     @Test
-    fun `결제 결과가 불확실하면 결과 확인 전까지 재고를 복구하지 않는다`() {
-        TODO()
+    fun `결제 결과가 불확실하면 주문과 재고 선점을 유지한다`() {
+        // given
+        val sku = skuRepository.save(Sku(name = "testSKU", stock = 10))
+        val skuId = requireNotNull(sku.id)
+        val order = orderUseCase.placeOrder(userId = 1, skuId = skuId, quantity = 4)
+        val orderId = requireNotNull(order.id)
+        Mockito.doReturn(PaymentAttemptResult.UNKNOWN)
+            .`when`(paymentGateway)
+            .requestPayment(
+                orderId = Mockito.eq(orderId),
+                paymentMethod = Mockito.eq(PaymentMethod.CREDIT_CARD) ?: PaymentMethod.CREDIT_CARD,
+                attemptKey = Mockito.any(UUID::class.java) ?: UUID.randomUUID()
+            )
+
+        // when
+        val paymentResult = orderUseCase.attemptPayment(orderId, PaymentMethod.CREDIT_CARD)
+
+        // then
+        val actualOrder = orderRepository.findByIdOrNull(orderId) ?: error("주문을 찾을 수 없음")
+        val actualSku = skuRepository.findByIdOrNull(skuId) ?: error("SKU를 찾을 수 없음")
+        assertThat(paymentResult).isEqualTo(PaymentAttemptResult.UNKNOWN)
+        assertThat(actualOrder.status).isEqualTo(OrderStatus.PENDING_PAYMENT)
+        assertThat(actualSku.stock).isEqualTo(6)
     }
 
     @Test
